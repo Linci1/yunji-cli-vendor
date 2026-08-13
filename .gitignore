@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.pytest_cache/
+dist/
+build/
+*.log
+.env
+.env.*
+

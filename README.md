@@ -1,0 +1,136 @@
+# yunji-cli-vendor
+
+`yunji-cli-vendor` 是面向云集供应商管理员和供应商员工的命令行工具。它只包含供应商业务所需能力，所有可见数据和写操作均由服务端根据个人 AccessToken、供应商归属、角色和订单归属再次校验。
+
+## 安装
+
+环境要求：macOS 或 Linux、Bash 3.2+、Python 3.10+。
+
+从服务方提供的正式安装包解压后执行：
+
+```bash
+./install.sh
+```
+
+默认安装到当前用户目录，不需要管理员权限：
+
+```text
+~/.local/share/yunji-cli-vendor
+~/.local/bin/yunji
+```
+
+若终端提示 `yunji: command not found`，将命令目录加入 PATH。
+
+Zsh：
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Bash：
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+## 首次使用
+
+服务方会单独提供供应商服务地址和个人 AccessToken。先配置服务地址：
+
+```bash
+yunji config set-server --url 'https://<供应商服务地址>'
+yunji config show --compact
+```
+
+然后在交互终端登录：
+
+```bash
+yunji auth login
+yunji auth status --compact
+yunji whoami --compact
+```
+
+`auth login` 输入过程不会显示 Token。工具不支持通过命令行参数或管道传入 Token，避免 Token 进入 Shell 历史、进程列表或 Agent 日志。
+
+Token 保存在 `~/.config/yunji-cli-vendor/access-token`，权限为 `600`。每位用户必须使用自己的 Token，不得共享。
+
+## 角色能力
+
+| 角色 | 能力 |
+|---|---|
+| 供应商管理员 | 查询、创建和维护本供应商员工；查询本供应商需求订单；接单或拒单；查询和响应本供应商采购单；查询和下载授权订单的交付材料 |
+| 供应商员工 | 查询和下载本人有权访问订单的交付材料 |
+
+同一安装包适用于两类角色。CLI 会先检查当前供应商身份，服务端再执行最终权限校验。
+
+## 常用命令
+
+供应商管理员：
+
+```bash
+yunji requirement-order-list --limit 20 --compact
+yunji requirement-order-detail --id <需求订单ID> --compact
+yunji requirement-order-approve --id <需求订单ID> --yes --compact
+yunji requirement-order-reject --id <需求订单ID> --reason '<拒绝原因>' --yes --compact
+
+yunji partner-purchase-list --compact
+yunji partner-purchase-detail --id <采购单ID> --compact
+yunji partner-purchase-response-info --id <采购单ID> --compact
+yunji partner-purchase-respond \
+  --id <采购单ID> \
+  --purchase-amount <采购金额> \
+  --tax-rate <0到1之间的税率> \
+  --user-ids <员工ID> \
+  --yes \
+  --compact
+```
+
+员工管理：
+
+```bash
+yunji partner-employee-list --compact
+yunji partner-employee-detail --id <员工记录ID> --compact
+yunji partner-employee-create --content '{"name":"示例姓名"}' --yes --compact
+yunji partner-employee-update --id <员工记录ID> --content '{"name":"示例姓名"}' --yes --compact
+yunji partner-employee-switch --id <员工记录ID> --enabled --yes --compact
+yunji partner-employee-tag --id <员工记录ID> --tag '<标签>' --yes --compact
+```
+
+交付材料：
+
+```bash
+yunji materials-by-order --requirement-order-id <需求订单ID> --compact
+yunji material-download --id <材料ID> --output ./delivery-material.docx --compact
+```
+
+工具不提供独立下载凭证命令，下载凭证不会输出到终端。
+
+## 写操作与 Agent
+
+创建、修改、接单、拒单和采购单响应等写操作均要求 `--yes`。推荐流程：
+
+1. `yunji whoami --compact` 确认当前供应商身份。
+2. 查询目标对象及最新状态。
+3. 使用 `yunji <命令> --help` 核对参数。
+4. 向用户展示对象、动作和影响。
+5. 用户明确确认后才添加 `--yes`。
+6. 操作完成后重新查询确认结果。
+
+Agent 不得编造 ID，不得更换其他对象试探权限。遇到 `401`、`403` 或 `404` 应立即停止并联系服务方。
+
+## 卸载与退出
+
+退出并删除本机 Token：
+
+```bash
+yunji auth logout
+```
+
+卸载前先执行 `command -v yunji` 确认安装路径。不要在未确认路径时递归删除目录。
+
+## 反馈
+
+反馈时请提供命令名称、用户角色、发生时间和脱敏后的错误信息。不要发送 AccessToken、密码、完整交付材料或下载链接。
+
