@@ -29,6 +29,8 @@ class VendorCliTest(unittest.TestCase):
                 "requirement-order-list", "requirement-order-detail", "requirement-order-approve",
                 "requirement-order-reject", "partner-purchase-list", "partner-purchase-detail",
                 "partner-purchase-response-info", "partner-purchase-respond",
+                "work-hours-list", "work-hours-detail", "work-hours-submit",
+                "work-hours-update", "work-hours-check", "process-trace",
                 "materials-by-order", "material-download",
             },
         )
@@ -100,6 +102,51 @@ class VendorCliTest(unittest.TestCase):
         source = MODULE_PATH.read_text(encoding="utf-8")
         self.assertNotIn("download_credential", source)
         self.assertNotIn("batch_download_credentials", source)
+
+    def test_work_hours_submit_requires_yes(self):
+        args = type("Args", (), {
+            "command": "work-hours-submit", "requirement_order_id": 3033,
+            "order_serial_no": "", "user_id": 112, "date": "2026-09-02",
+            "work_hours": 8, "remark": "", "yes": False, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
+            self.assertEqual(MODULE.command_work_hours_submit(args), 2)
+            request.assert_not_called()
+
+    def test_work_hours_submit_uses_engineer_id(self):
+        args = type("Args", (), {
+            "command": "work-hours-submit", "requirement_order_id": 3033,
+            "order_serial_no": "", "user_id": 112, "date": "2026-09-02",
+            "work_hours": 8, "remark": "现场服务", "yes": True, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_work_hours_submit(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/security-product/work-record/submit",
+            method="POST",
+            body={"requirementOrderId": 3033, "orderSerialNo": "", "userId": 112, "date": "2026-09-02", "workHours": 8, "remark": "现场服务"},
+        )
+
+    def test_employee_cannot_check_purchase_order_work_hours(self):
+        args = type("Args", (), {"command": "work-hours-check", "purchase_order_id": 638, "requirement_order_id": None, "compact": True})()
+        with patch.object(MODULE, "require_role", side_effect=MODULE.VendorError("当前账号不是此命令允许的供应商角色。")), patch.object(MODULE, "api_request") as request:
+            with self.assertRaises(MODULE.VendorError):
+                MODULE.command_work_hours_check(args)
+            request.assert_not_called()
+
+    def test_purchase_response_includes_work_hour_reason(self):
+        args = type("Args", (), {
+            "command": "partner-purchase-respond", "id": 638, "purchase_amount": 1000,
+            "tax_rate": 0.06, "user_ids": [112], "work_hour_error_reason": "工作超出预估时长",
+            "work_hour_error_reason_detail": "临时增加工作", "yes": True, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_purchase_respond(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/purchase-order/partner_respond",
+            method="POST",
+            body={"orderId": 638, "purchaseAmount": 1000, "taxRate": 0.06, "userIds": [112], "workHourErrorReason": "工作超出预估时长", "workHourErrorReasonDetail": "临时增加工作"},
+        )
 
     def test_install_in_isolated_directories(self):
         root = MODULE_PATH.parents[1]

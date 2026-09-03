@@ -359,8 +359,115 @@ def command_purchase_respond(args: argparse.Namespace) -> int:
     if args.purchase_amount <= 0 or not 0 <= args.tax_rate <= 1 or not args.user_ids:
         raise VendorError("采购金额必须大于 0，税率须在 0 到 1 之间，并至少指定一名员工。")
     body = {"orderId": args.id, "purchaseAmount": args.purchase_amount, "taxRate": args.tax_rate, "userIds": args.user_ids}
+    if args.work_hour_error_reason:
+        body["workHourErrorReason"] = args.work_hour_error_reason
+    if args.work_hour_error_reason_detail:
+        body["workHourErrorReasonDetail"] = args.work_hour_error_reason_detail
     data = unwrap(api_request("/api/admin/purchase-order/partner_respond", method="POST", body=body))
     print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
+    return 0
+
+
+def command_work_hours_list(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    body: dict[str, Any] = {"page": args.page, "limit": args.limit}
+    for attr, key in (
+        ("requirement_order_id", "requirementOrderId"),
+        ("order_serial_no", "orderSerialNo"),
+        ("requirement_id", "requirementId"),
+        ("project_name", "projectName"),
+        ("user_id", "userId"),
+        ("employee_name", "employeeName"),
+        ("day_begin", "dayBegin"),
+        ("day_end", "dayEnd"),
+        ("status", "status"),
+    ):
+        value = getattr(args, attr, None)
+        if value not in (None, ""):
+            body[key] = value
+    data = unwrap(api_request("/api/admin/security-product/work-record/list", method="POST", body=body))
+    print_payload({"command": args.command, "status": "ok", "filters": body, "data": data}, args.compact)
+    return 0
+
+
+def command_work_hours_detail(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    data = unwrap(api_request(f"/api/admin/security-product/work-record/detail?id={args.id}"))
+    print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
+    return 0
+
+
+def command_work_hours_submit(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    if not require_yes(args, "这是工时提交写操作，请核对订单、工程师、日期和工时后加 --yes。"):
+        return 2
+    if not args.requirement_order_id and not args.order_serial_no:
+        raise VendorError("请提供 --requirement-order-id 或 --order-serial-no。")
+    if args.work_hours <= 0 or not float(args.work_hours).is_integer():
+        raise VendorError("工时必须是正整数小时。")
+    body = {
+        "requirementOrderId": args.requirement_order_id,
+        "orderSerialNo": args.order_serial_no,
+        "userId": args.user_id,
+        "date": args.date,
+        "workHours": int(args.work_hours),
+        "remark": args.remark,
+    }
+    data = unwrap(api_request("/api/admin/security-product/work-record/submit", method="POST", body=body))
+    print_payload({"command": args.command, "status": "ok", "data": data}, args.compact)
+    return 0
+
+
+def command_work_hours_update(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    if not require_yes(args, "这是工时修改写操作，请核对修改内容和原因后加 --yes。"):
+        return 2
+    if args.work_hours <= 0 or not float(args.work_hours).is_integer():
+        raise VendorError("工时必须是正整数小时。")
+    if not args.reason.strip():
+        raise VendorError("修改工时必须提供 --reason。")
+    body = {"id": args.id, "date": args.date, "workHours": int(args.work_hours), "remark": args.remark, "reason": args.reason}
+    data = unwrap(api_request("/api/admin/security-product/work-record/update", method="POST", body=body))
+    print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
+    return 0
+
+
+def command_work_hours_check(args: argparse.Namespace) -> int:
+    if args.purchase_order_id:
+        require_role(ROLE_ADMIN)
+        data = unwrap(api_request(f"/api/admin/purchase-order/partner_order_detail?id={args.purchase_order_id}"))
+        check = data.get("workHourCheck") if isinstance(data, dict) else None
+        scope = {"purchaseOrderId": args.purchase_order_id}
+    else:
+        require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+        data = unwrap(api_request(f"/api/admin/requirement-order/detail?id={args.requirement_order_id}"))
+        if not isinstance(data, dict):
+            raise VendorError("订单工时响应无法解析。")
+        check = {key: data.get(key) for key in (
+            "deliveryMaterialCount", "deliveryMaterialUploaded", "workRecordCount",
+            "workRecordCompleted", "workRecordApproved", "orderDeliveryStatus",
+            "orderDeliveryStatusCode", "orderCloseTime", "workHourSummaries",
+        )}
+        scope = {"requirementOrderId": args.requirement_order_id}
+    print_payload({"command": args.command, "status": "ok", "scope": scope, "data": check or {}}, args.compact)
+    return 0
+
+
+def command_process_trace(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    scope = {
+        "requirementId": args.requirement_id,
+        "requirementOrderId": args.requirement_order_id,
+        "purchaseOrderId": args.purchase_order_id,
+    }
+    if not any(scope.values()):
+        raise VendorError("请至少提供 --requirement-id、--requirement-order-id 或 --purchase-order-id。")
+    params = {key: value for key, value in scope.items() if value}
+    if args.event_type:
+        params["eventType"] = args.event_type
+    params.update({"page": args.page, "limit": args.limit})
+    data = unwrap(api_request(f"/api/admin/security-product/process-event/list?{urllib_parse.urlencode(params)}"))
+    print_payload({"command": args.command, "status": "ok", "filters": params, "data": data}, args.compact)
     return 0
 
 
@@ -522,7 +629,65 @@ def build_parser() -> argparse.ArgumentParser:
     respond.add_argument("--purchase-amount", type=float, required=True)
     respond.add_argument("--tax-rate", type=float, required=True)
     respond.add_argument("--user-ids", type=int, nargs="+", required=True)
+    respond.add_argument("--work-hour-error-reason", default="", help="按接口返回选项填写工时误差原因")
+    respond.add_argument("--work-hour-error-reason-detail", default="", help="工时误差原因补充说明")
     respond.set_defaults(func=command_purchase_respond)
+
+    work_list = sub.add_parser("work-hours-list", help="[供应商管理员/员工] 查询安全产品工时")
+    add_common(work_list)
+    work_list.add_argument("--page", type=int, default=1)
+    work_list.add_argument("--limit", type=int, default=20)
+    work_list.add_argument("--requirement-order-id", type=int)
+    work_list.add_argument("--order-serial-no", default="")
+    work_list.add_argument("--requirement-id", type=int)
+    work_list.add_argument("--project-name", default="")
+    work_list.add_argument("--user-id", type=int)
+    work_list.add_argument("--employee-name", default="")
+    work_list.add_argument("--day-begin", default="", help="YYYY-MM-DD")
+    work_list.add_argument("--day-end", default="", help="YYYY-MM-DD")
+    work_list.add_argument("--status", type=int, choices=[0, 2, 3])
+    work_list.set_defaults(func=command_work_hours_list)
+
+    work_detail = sub.add_parser("work-hours-detail", help="[供应商管理员/员工] 查询工时详情及编辑历史")
+    add_common(work_detail)
+    work_detail.add_argument("--id", type=int, required=True)
+    work_detail.set_defaults(func=command_work_hours_detail)
+
+    work_submit = sub.add_parser("work-hours-submit", help="[供应商管理员/员工] 提交安全产品工时")
+    add_common(work_submit); add_write(work_submit)
+    work_submit.add_argument("--requirement-order-id", type=int)
+    work_submit.add_argument("--order-serial-no", default="")
+    work_submit.add_argument("--user-id", type=int, required=True, help="实际填报工程师用户 ID")
+    work_submit.add_argument("--date", required=True, help="YYYY-MM-DD")
+    work_submit.add_argument("--work-hours", type=float, required=True, help="正整数小时")
+    work_submit.add_argument("--remark", default="")
+    work_submit.set_defaults(func=command_work_hours_submit)
+
+    work_update = sub.add_parser("work-hours-update", help="[供应商管理员/员工] 修改安全产品工时")
+    add_common(work_update); add_write(work_update)
+    work_update.add_argument("--id", type=int, required=True)
+    work_update.add_argument("--date", required=True, help="YYYY-MM-DD")
+    work_update.add_argument("--work-hours", type=float, required=True, help="正整数小时")
+    work_update.add_argument("--remark", default="")
+    work_update.add_argument("--reason", required=True)
+    work_update.set_defaults(func=command_work_hours_update)
+
+    work_check = sub.add_parser("work-hours-check", help="[供应商管理员/员工] 查看订单或采购单工时核对")
+    add_common(work_check)
+    work_scope = work_check.add_mutually_exclusive_group(required=True)
+    work_scope.add_argument("--requirement-order-id", type=int)
+    work_scope.add_argument("--purchase-order-id", type=int)
+    work_check.set_defaults(func=command_work_hours_check)
+
+    process_trace = sub.add_parser("process-trace", help="[供应商管理员/员工] 查询本人授权范围内的流程事件")
+    add_common(process_trace)
+    process_trace.add_argument("--requirement-id", type=int)
+    process_trace.add_argument("--requirement-order-id", type=int)
+    process_trace.add_argument("--purchase-order-id", type=int)
+    process_trace.add_argument("--event-type", default="")
+    process_trace.add_argument("--page", type=int, default=1)
+    process_trace.add_argument("--limit", type=int, choices=range(1, 101), default=100)
+    process_trace.set_defaults(func=command_process_trace)
 
     materials = sub.add_parser("materials-by-order", help="[供应商管理员/员工] 查询订单交付材料")
     add_common(materials)

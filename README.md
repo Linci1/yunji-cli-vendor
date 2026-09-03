@@ -60,8 +60,8 @@ Token 保存在 `~/.config/yunji-cli-vendor/access-token`，权限为 `600`。�
 
 | 角色 | 能力 |
 |---|---|
-| 供应商管理员 | 查询、创建和维护本供应商员工；查询本供应商需求订单；接单或拒单；查询和响应本供应商采购单；查询和下载授权订单的交付材料 |
-| 供应商员工 | 查询和下载本人有权访问订单的交付材料 |
+| 供应商管理员 | 查询、创建和维护本供应商员工；查询本供应商需求订单；接单或拒单；查询和响应本供应商采购单；代员工填写或修改工时；查询和下载授权订单的交付材料 |
+| 供应商员工 | 查询、填写和修改本人订单工时；查询流程事件；查询和下载本人有权访问订单的交付材料 |
 
 同一安装包适用于两类角色。CLI 会先检查当前供应商身份，服务端再执行最终权限校验。
 
@@ -83,9 +83,49 @@ yunji partner-purchase-respond \
   --purchase-amount <采购金额> \
   --tax-rate <0到1之间的税率> \
   --user-ids <员工ID> \
+  --work-hour-error-reason '<接口返回的误差原因>' \
+  --work-hour-error-reason-detail '<补充说明>' \
   --yes \
   --compact
 ```
+
+响应采购单前先执行：
+
+```bash
+yunji partner-purchase-response-info --id <采购单ID> --compact
+yunji work-hours-check --purchase-order-id <采购单ID> --compact
+```
+
+若返回 `workHourErrorReasonRequired=true`，必须从 `workHourErrorReasonOptions` 中选择原因。
+
+安全产品工时：
+
+```bash
+yunji work-hours-list --requirement-order-id <需求订单ID> --compact
+yunji work-hours-detail --id <工时记录ID> --compact
+
+yunji work-hours-submit \
+  --requirement-order-id <需求订单ID> \
+  --user-id <工程师用户ID> \
+  --date 2026-09-03 \
+  --work-hours 8 \
+  --remark '<工作说明>' \
+  --yes \
+  --compact
+
+yunji work-hours-update \
+  --id <工时记录ID> \
+  --date 2026-09-03 \
+  --work-hours 4 \
+  --reason '<修改原因>' \
+  --yes \
+  --compact
+
+yunji work-hours-check --requirement-order-id <需求订单ID> --compact
+yunji process-trace --requirement-order-id <需求订单ID> --compact
+```
+
+`--user-id` 始终表示实际填报工程师。供应商管理员代填时，后端会记录管理员为实际操作人。流程事件只返回当前账号有权访问的订单数据；`historyComplete=false` 表示旧数据事件链不完整。
 
 员工管理：
 
@@ -109,7 +149,7 @@ yunji material-download --id <材料ID> --output ./delivery-material.docx --comp
 
 ## 写操作与 Agent
 
-创建、修改、接单、拒单和采购单响应等写操作均要求 `--yes`。推荐流程：
+创建、修改、接单、拒单、工时提交与修改和采购单响应等写操作均要求 `--yes`。推荐流程：
 
 1. `yunji whoami --compact` 确认当前供应商身份。
 2. 查询目标对象及最新状态。
@@ -133,4 +173,3 @@ yunji auth logout
 ## 反馈
 
 反馈时请提供命令名称、用户角色、发生时间和脱敏后的错误信息。不要发送 AccessToken、密码、完整交付材料或下载链接。
-
