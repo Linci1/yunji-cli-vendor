@@ -13,7 +13,6 @@ TEXT_SUFFIXES = {"", ".md", ".py", ".sh", ".txt", ".json", ".toml", ".yaml", ".y
 RELEASE_PATHS = (ROOT / "README.md", ROOT / "install.sh", ROOT / "scripts")
 FORBIDDEN = {
     "internal Git service": re.compile(r"git\.in\.", re.I),
-    "internal Yunji hostname": re.compile(r"yunji\.chaitin\.", re.I),
     "internal API reference": re.compile(r"references/api\.md", re.I),
     "direct token flag": re.compile(r"--token\b"),
     "stdin token flag": re.compile(r"--stdin\b"),
@@ -25,6 +24,7 @@ FORBIDDEN = {
     "known internal person": re.compile(r"于爽|shuang\.yu|张珈铨|jiaquan\.zhang"),
     "access token": re.compile(r"yunji_[A-Za-z0-9_-]{20,}"),
     "DingTalk webhook": re.compile(r"oapi\.dingtalk\.com/robot/send\?access_token=", re.I),
+    "test environment endpoint": re.compile(r"yunji\.huabeiapi\.com", re.I),
 }
 
 

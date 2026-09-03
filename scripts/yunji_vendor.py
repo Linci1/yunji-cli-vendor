@@ -21,6 +21,7 @@ CONFIG_DIR = Path(
 ).expanduser()
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
+DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
@@ -60,8 +61,8 @@ def configured_server() -> tuple[str, str]:
     try:
         value = SERVER_FILE.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
-        return "", ""
-    return (normalize_server_url(value), str(SERVER_FILE)) if value else ("", "")
+        return DEFAULT_BASE_URL, "builtin"
+    return (normalize_server_url(value), str(SERVER_FILE)) if value else (DEFAULT_BASE_URL, "builtin")
 
 
 def normalize_server_url(value: str) -> str:
@@ -71,7 +72,9 @@ def normalize_server_url(value: str) -> str:
         raise VendorError("服务地址必须是未包含账号密码的 HTTPS 地址。")
     if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
         raise VendorError("服务地址只能包含协议、域名和可选端口，不能包含路径、查询或片段。")
-    return raw
+    if raw != DEFAULT_BASE_URL:
+        raise VendorError("正式供应商 CLI 只允许连接云集正式环境，请移除服务地址覆盖。")
+    return DEFAULT_BASE_URL
 
 
 def save_private(path: Path, value: str) -> None:
@@ -106,8 +109,6 @@ def api_request(
     token: str | None = None,
 ) -> dict[str, Any]:
     server, _ = configured_server()
-    if not server:
-        raise VendorError("尚未配置服务地址。请先运行 `yunji config set-server --url <供应商服务地址>`。")
     if token is None:
         token, _ = configured_token()
     if not token:

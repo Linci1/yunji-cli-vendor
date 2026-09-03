@@ -37,14 +37,7 @@ source ~/.bashrc
 
 ## 首次使用
 
-服务方会单独提供供应商服务地址和个人 AccessToken。先配置服务地址：
-
-```bash
-yunji config set-server --url 'https://<供应商服务地址>'
-yunji config show --compact
-```
-
-然后在交互终端登录：
+正式供应商 CLI 固定连接云集正式环境，不需要也不允许切换服务地址。服务方会单独提供个人 AccessToken，在交互终端登录：
 
 ```bash
 yunji auth login

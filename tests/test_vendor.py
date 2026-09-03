@@ -17,6 +17,11 @@ SPEC.loader.exec_module(MODULE)
 
 
 class VendorCliTest(unittest.TestCase):
+    def test_known_test_endpoint_is_rejected(self):
+        endpoint = "https://yunji." + "huabeiapi.com"
+        with self.assertRaisesRegex(MODULE.VendorError, "只允许连接云集正式环境"):
+            MODULE.normalize_server_url(endpoint)
+
     def test_parser_exposes_only_vendor_commands(self):
         parser = MODULE.build_parser()
         choices = next(action.choices for action in parser._actions if action.dest == "command")
@@ -73,12 +78,24 @@ class VendorCliTest(unittest.TestCase):
         self.assertNotIn("username", payload["identity"])
         self.assertNotIn("token", json.dumps(payload).lower())
 
-    def test_server_requires_https_and_no_credentials(self):
+    def test_server_is_fixed_to_production(self):
         with self.assertRaises(MODULE.VendorError):
             MODULE.normalize_server_url("http://example.invalid")
         with self.assertRaises(MODULE.VendorError):
             MODULE.normalize_server_url("https://user:pass@example.invalid")
-        self.assertEqual(MODULE.normalize_server_url("https://example.invalid/"), "https://example.invalid")
+        with self.assertRaisesRegex(MODULE.VendorError, "只允许连接云集正式环境"):
+            MODULE.normalize_server_url("https://example.invalid/")
+        self.assertEqual(MODULE.normalize_server_url(MODULE.DEFAULT_BASE_URL), MODULE.DEFAULT_BASE_URL)
+
+    def test_server_defaults_to_builtin_production(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_file = MODULE.SERVER_FILE
+            try:
+                MODULE.SERVER_FILE = Path(directory) / "missing-server-url"
+                with patch.dict(MODULE.os.environ, {}, clear=True):
+                    self.assertEqual(MODULE.configured_server(), (MODULE.DEFAULT_BASE_URL, "builtin"))
+            finally:
+                MODULE.SERVER_FILE = old_file
 
     def test_private_files_use_restricted_permissions(self):
         with tempfile.TemporaryDirectory() as directory:

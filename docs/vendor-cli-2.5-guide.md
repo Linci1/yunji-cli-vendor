@@ -25,13 +25,12 @@
 ```bash
 ./install.sh
 export PATH="$HOME/.local/bin:$PATH"
-yunji config set-server --url 'https://<供应商服务地址>'
 yunji auth login
 yunji auth status --compact
 yunji whoami --compact
 ```
 
-AccessToken 输入过程不会显示。每位用户必须使用自己的 Token，不得通过聊天、邮件、脚本或共享文档传递。
+正式供应商 CLI 固定连接云集正式环境，不需要也不允许切换服务地址。AccessToken 输入过程不会显示。每位用户必须使用自己的 Token，不得通过聊天、邮件、脚本或共享文档传递。
 
 ### 4. 工程师操作
 
