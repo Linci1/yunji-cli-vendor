@@ -20,19 +20,30 @@
 
 ### 2. 安装、登录与环境
 
-Windows 供应商解压安装包后，在 PowerShell 中进入解压目录并执行：
+供应商 CLI 支持 Windows 10 或以上、macOS 和 Linux，要求 Python 3.10 或以上。解压服务方提供的安装包后，按当前系统执行安装命令；安装器只写入当前用户目录，不需要管理员权限。
+
+Windows：
 
 ```powershell
 .\install.cmd
 ```
 
-安装完成后关闭并重新打开终端，再继续登录。安装器会把 `yunji` 命令目录加入当前用户 PATH。
+安装完成后关闭并重新打开 PowerShell。安装器会把 `yunji` 命令目录加入当前用户 PATH。
 
-macOS 或 Linux 解压后执行：
+macOS / Linux：
 
 ```bash
 ./install.sh
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+上面的 `export` 让当前终端立即识别 `yunji`。如需长期生效，把该行加入 `~/.zshrc` 或 `~/.bashrc`。
+
+### 3. 首次登录与环境
+
+安装完成后，Windows、macOS 和 Linux 继续执行相同命令：
+
+```bash
 yunji auth login
 yunji auth status --compact
 yunji whoami --compact
@@ -44,7 +55,7 @@ yunji whoami --compact
 
 所有命令支持 `--compact`，输出紧凑 JSON，便于脚本和 AI Agent 解析。所有写操作必须显式添加 `--yes`。
 
-### 3. 通用命令
+### 4. 通用命令
 
 | 命令 | 角色 | 用途 |
 | --- | --- | --- |
@@ -61,7 +72,7 @@ yunji auth status --compact
 yunji whoami --compact
 ```
 
-### 4. 员工管理
+### 5. 员工管理
 
 供应商负责人可以查询和维护本供应商员工。
 
@@ -93,7 +104,7 @@ yunji partner-employee-tag --id <员工记录ID> --tag '<标签>' --yes --compac
 
 执行修改前先用列表确认员工记录 ID；该 ID 不一定等于云集用户 ID。
 
-### 5. 需求订单
+### 6. 需求订单
 
 供应商负责人可以查询本供应商需求订单并接单或拒单。
 
@@ -127,7 +138,7 @@ yunji requirement-order-reject \
   --yes --compact
 ```
 
-### 6. 采购单
+### 7. 采购单
 
 供应商负责人可以查询采购单、获取响应回填信息并提交采购单响应。
 
@@ -169,7 +180,7 @@ yunji partner-purchase-respond \
 
 误差原因必须从 `workHourErrorReasonOptions` 中选择。多个工程师用户 ID 按命令帮助要求传递。
 
-### 7. 工时填写
+### 8. 工时填写
 
 工程师填写本人工时；供应商负责人可代本供应商名下工程师填写。
 
@@ -217,7 +228,7 @@ yunji work-hours-update \
 
 工时必须是正整数小时。日期不能晚于当天，必须落在订单服务时间内；同一订单、工程师和日期不能重复填写。`--user-id` 始终表示实际工作的工程师，不是登录操作人；代填操作人和修改历史由服务端记录。
 
-### 8. 工时核对
+### 9. 工时核对
 
 按需求订单查询：
 
@@ -245,7 +256,7 @@ yunji work-hours-check \
 
 不要只看提示文案；应同时读取状态字段和问题列表。
 
-### 9. 流程事件
+### 10. 流程事件
 
 流程事件至少指定需求单、需求订单或采购单中的一个范围：
 
@@ -259,7 +270,7 @@ yunji process-trace --purchase-order-id <采购单ID> --compact
 
 业务耗时使用 `eventTime` 计算。`historyComplete=false` 或旧订单返回空事件时，表示历史链路无法完整还原，不应使用对象更新时间反推业务节点时间。
 
-### 10. 交付材料
+### 11. 交付材料
 
 查询订单交付材料：
 
@@ -280,7 +291,7 @@ yunji material-download \
 
 目标文件已存在时不会覆盖；确认后才能添加 `--force`。材料可能包含项目敏感信息，应下载到受控目录，按公司和客户要求保存与销毁。
 
-### 11. 常见问题
+### 12. 常见问题
 
 | 现象 | 处理方式 |
 | --- | --- |
@@ -291,7 +302,7 @@ yunji material-download \
 | 提示缺少 `--yes` | 确认操作摘要后显式添加 `--yes` |
 | 服务地址被拒绝 | 移除非正式环境覆盖，使用 CLI 内置正式地址 |
 
-### 12. 安全边界
+### 13. 安全边界
 
 - 供应商工程师不能查询或响应采购单；
 - 供应商负责人只能操作本供应商和名下工程师授权范围内的数据；

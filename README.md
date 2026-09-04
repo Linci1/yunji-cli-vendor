@@ -6,15 +6,15 @@
 
 环境要求：Windows 10 或以上、macOS 或 Linux，Python 3.10 或以上。
 
-从服务方提供的正式安装包解压后执行：
+从服务方提供的正式安装包解压后，按操作系统执行。安装器只写入当前用户目录，不需要管理员权限。
 
-Windows PowerShell：
+Windows：
 
 ```powershell
 .\install.cmd
 ```
 
-macOS 或 Linux：
+macOS / Linux：
 
 ```bash
 ./install.sh
@@ -36,7 +36,9 @@ macOS 或 Linux：
 ~/.local/bin/yunji
 ```
 
-Windows 安装器会将命令目录加入当前用户 PATH。安装后请关闭并重新打开终端。若终端提示 `yunji: command not found`，macOS/Linux 用户将命令目录加入 PATH。
+Windows 安装器会将命令目录加入当前用户 PATH。安装完成后关闭并重新打开 PowerShell。
+
+若 macOS / Linux 终端提示 `yunji: command not found`，先将命令目录加入 PATH：
 
 Zsh：
 
@@ -52,7 +54,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-## 首次使用
+## 登录
 
 正式供应商 CLI 固定连接云集正式环境，不需要也不允许切换服务地址。服务方会单独提供个人 AccessToken，在交互终端登录：
 
