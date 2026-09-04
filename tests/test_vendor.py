@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -39,6 +40,21 @@ class VendorCliTest(unittest.TestCase):
                 "materials-by-order", "material-download",
             },
         )
+
+    def test_full_guides_cover_vendor_surface(self):
+        parser = MODULE.build_parser()
+        command_action = next(action for action in parser._actions if action.dest == "command")
+        commands = set(command_action.choices)
+        cli_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-cli-2.5-guide.md").read_text(encoding="utf-8")
+        self.assertEqual({name for name in commands if name not in cli_guide}, set())
+
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        api_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-api-2.5-guide.md").read_text(encoding="utf-8")
+        endpoints = {
+            re.sub(r"\?.*$", "", endpoint).replace("{args.id}", "{id}").replace("{query}", "")
+            for endpoint in re.findall(r"/api/admin/[A-Za-z0-9_?=&${}/.-]+", source)
+        }
+        self.assertEqual({endpoint for endpoint in endpoints if endpoint not in api_guide}, set())
 
     def test_login_has_no_token_or_stdin_argument(self):
         parser = MODULE.build_parser()
