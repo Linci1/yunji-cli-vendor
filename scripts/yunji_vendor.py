@@ -22,6 +22,7 @@ CONFIG_DIR = Path(
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
 DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
+__version__ = "2.5.0"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
@@ -39,6 +40,12 @@ class ChineseArgumentParser(argparse.ArgumentParser):
 def print_payload(payload: Any, compact: bool = False) -> None:
     indent = None if compact else 2
     print(json.dumps(payload, ensure_ascii=False, indent=indent, separators=(",", ":") if compact else None))
+
+
+def configure_output() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def ensure_config_dir() -> None:
@@ -521,6 +528,7 @@ def add_write(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = ChineseArgumentParser(description="云集供应商命令行工具")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     add_common(parser)
     sub = parser.add_subparsers(dest="command", required=True, parser_class=ChineseArgumentParser)
 
@@ -705,6 +713,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_output()
     args = build_parser().parse_args()
     try:
         return int(args.func(args))

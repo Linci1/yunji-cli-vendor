@@ -4,9 +4,17 @@
 
 ## 安装
 
-环境要求：macOS 或 Linux、Bash 3.2+、Python 3.10+。
+环境要求：Windows 10 或以上、macOS 或 Linux，Python 3.10 或以上。
 
 从服务方提供的正式安装包解压后执行：
+
+Windows PowerShell：
+
+```powershell
+.\install.cmd
+```
+
+macOS 或 Linux：
 
 ```bash
 ./install.sh
@@ -14,12 +22,21 @@
 
 默认安装到当前用户目录，不需要管理员权限：
 
+Windows：
+
+```text
+%LOCALAPPDATA%\yunji-cli-vendor
+%LOCALAPPDATA%\Programs\yunji-cli-vendor\bin
+```
+
+macOS 或 Linux：
+
 ```text
 ~/.local/share/yunji-cli-vendor
 ~/.local/bin/yunji
 ```
 
-若终端提示 `yunji: command not found`，将命令目录加入 PATH。
+Windows 安装器会将命令目录加入当前用户 PATH。安装后请关闭并重新打开终端。若终端提示 `yunji: command not found`，macOS/Linux 用户将命令目录加入 PATH。
 
 Zsh：
 
@@ -47,7 +64,7 @@ yunji whoami --compact
 
 `auth login` 输入过程不会显示 Token。工具不支持通过命令行参数或管道传入 Token，避免 Token 进入 Shell 历史、进程列表或 Agent 日志。
 
-Token 保存在 `~/.config/yunji-cli-vendor/access-token`，权限为 `600`。每位用户必须使用自己的 Token，不得共享。
+Token 保存在当前用户目录：Windows 为 `%USERPROFILE%\.config\yunji-cli-vendor\access-token`，macOS/Linux 为 `~/.config/yunji-cli-vendor/access-token`。macOS/Linux 文件权限为 `600`；Windows 依赖当前用户目录的 NTFS 访问控制。每位用户必须使用自己的 Token，不得共享。
 
 ## 角色能力
 

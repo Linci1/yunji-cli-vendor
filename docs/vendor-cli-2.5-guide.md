@@ -20,7 +20,15 @@
 
 ### 2. 安装、登录与环境
 
-解压服务方提供的安装包后执行：
+Windows 供应商解压安装包后，在 PowerShell 中进入解压目录并执行：
+
+```powershell
+.\install.cmd
+```
+
+安装完成后关闭并重新打开终端，再继续登录。安装器会把 `yunji` 命令目录加入当前用户 PATH。
+
+macOS 或 Linux 解压后执行：
 
 ```bash
 ./install.sh
@@ -32,7 +40,7 @@ yunji whoami --compact
 
 正式供应商 CLI 固定连接云集正式环境，不需要配置服务地址，也不允许切换到其他地址。`config show` 可用于检查兼容配置；如历史配置不是正式地址，CLI 会在发送请求前停止。
 
-`auth login` 必须在交互终端执行，Token 输入过程不回显。每位用户必须使用自己的 AccessToken；不要通过聊天、邮件、工单、命令参数、脚本或共享文档传递 Token。
+`auth login` 必须在交互终端执行，Token 输入过程不回显。Token 保存在当前用户目录；Windows 使用 `%USERPROFILE%\.config\yunji-cli-vendor\access-token`，macOS/Linux 使用 `~/.config/yunji-cli-vendor/access-token`。每位用户必须使用自己的 AccessToken；不要通过聊天、邮件、工单、命令参数、脚本或共享文档传递 Token。
 
 所有命令支持 `--compact`，输出紧凑 JSON，便于脚本和 AI Agent 解析。所有写操作必须显式添加 `--yes`。
 

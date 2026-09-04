@@ -23,6 +23,19 @@ class VendorCliTest(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.VendorError, "只允许连接云集正式环境"):
             MODULE.normalize_server_url(endpoint)
 
+    def test_windows_launcher_supports_windows_python(self):
+        launcher = (MODULE_PATH.parent / "yunji.cmd").read_text(encoding="utf-8")
+        self.assertIn("py -3", launcher)
+        self.assertIn("python ", launcher)
+        self.assertIn("yunji_vendor.py", launcher)
+
+    def test_release_package_has_sanitized_allowlist(self):
+        package_script = MODULE_PATH.parents[1] / "tools" / "package_release.py"
+        source = package_script.read_text(encoding="utf-8")
+        self.assertIn('"scripts/yunji.cmd"', source)
+        self.assertIn('"tools/install-windows.ps1"', source)
+        self.assertNotIn("git.in.", source.replace('"internal Git service": re.compile(r"git\\.in\\.", re.I)', ""))
+
     def test_parser_exposes_only_vendor_commands(self):
         parser = MODULE.build_parser()
         choices = next(action.choices for action in parser._actions if action.dest == "command")
