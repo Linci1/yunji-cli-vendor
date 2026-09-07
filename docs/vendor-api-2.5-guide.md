@@ -36,7 +36,8 @@ GET /api/admin/user/current
 | 员工标签 | `/api/admin/partner-employee/set_tag` | POST | 供应商负责人使用 |
 | 需求订单列表 | `/api/admin/requirement-order/list` | POST | 查询本供应商订单 |
 | 需求订单详情 | `/api/admin/requirement-order/detail` | GET | 查询订单详情 |
-| 接单 | `/api/admin/requirement-order/approve` | POST | 接受需求订单 |
+| 普通订单接单 | `/api/admin/requirement-order/approve` | POST | 接受普通需求订单，参数使用 `orderId` |
+| 安全产品订单接单 | `/api/admin/requirement-order/approve_product` | POST | 通过“项目成员接单”接受安全产品订单，参数使用 `orderId` |
 | 拒单 | `/api/admin/requirement-order/reject` | POST | 拒绝原因必填 |
 | 采购单列表 | `/api/admin/purchase-order/partner_orders` | GET | 查询本供应商采购单 |
 | 采购单详情 | `/api/admin/purchase-order/partner_order_detail` | GET | 含工时核对结果 |
@@ -62,7 +63,7 @@ GET /api/admin/user/current
 
 ### 4. 需求订单
 
-需求订单列表和详情用于确认订单状态、服务时间、项目、交付状态和工程师绑定关系。供应商负责人确认可承接后调用接单；拒绝时必须提供原因。
+需求订单列表和详情用于确认订单状态、服务时间、项目、交付状态和工程师绑定关系。供应商负责人确认可承接后调用与订单类型对应的接单接口：普通订单使用 `/api/admin/requirement-order/approve`，安全产品订单使用 `/api/admin/requirement-order/approve_product`（项目成员接单）；拒绝时必须提供原因。
 
 接单、拒单和重新操作前应读取最新详情。已处理订单再次提交应返回状态冲突，客户端不得重复重试。
 

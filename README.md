@@ -85,6 +85,7 @@ Token 保存在当前用户目录：Windows 为 `%USERPROFILE%\.config\yunji-cli
 yunji requirement-order-list --limit 20 --compact
 yunji requirement-order-detail --id <需求订单ID> --compact
 yunji requirement-order-approve --id <需求订单ID> --yes --compact
+yunji requirement-order-approve-product --id <安全产品需求订单ID> --yes --compact
 yunji requirement-order-reject --id <需求订单ID> --reason '<拒绝原因>' --yes --compact
 
 yunji partner-purchase-list --compact

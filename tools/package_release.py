@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 
 
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 PACKAGE_FILES = (
     "README.md",
     "install.sh",

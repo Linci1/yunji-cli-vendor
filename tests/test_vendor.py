@@ -46,6 +46,7 @@ class VendorCliTest(unittest.TestCase):
                 "partner-employee-list", "partner-employee-detail", "partner-employee-create",
                 "partner-employee-update", "partner-employee-switch", "partner-employee-tag",
                 "requirement-order-list", "requirement-order-detail", "requirement-order-approve",
+                "requirement-order-approve-product",
                 "requirement-order-reject", "partner-purchase-list", "partner-purchase-detail",
                 "partner-purchase-response-info", "partner-purchase-respond",
                 "work-hours-list", "work-hours-detail", "work-hours-submit",
@@ -143,6 +144,66 @@ class VendorCliTest(unittest.TestCase):
         with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
             self.assertEqual(MODULE.command_order_action(args), 2)
             request.assert_not_called()
+
+    def test_reject_uses_order_id_field(self):
+        args = type("Args", (), {
+            "yes": True, "compact": True, "command": "requirement-order-reject",
+            "id": 123, "reason": "当前订单不符合承接条件",
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_order_action(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/requirement-order/reject",
+            method="POST",
+            body={"orderId": 123, "reason": "当前订单不符合承接条件"},
+            body_format="form",
+        )
+
+    def test_employee_update_rejects_conflicting_content_id(self):
+        args = type("Args", (), {
+            "yes": True, "compact": True, "command": "partner-employee-update",
+            "id": 100, "content": '{"id": 200, "name": "员工"}',
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
+            with self.assertRaisesRegex(MODULE.VendorError, "id 必须与命令行 --id 一致"):
+                MODULE.command_employee_mutate(args)
+            request.assert_not_called()
+
+    def test_employee_update_keeps_command_id_when_content_id_matches(self):
+        args = type("Args", (), {
+            "yes": True, "compact": True, "command": "partner-employee-update",
+            "id": 100, "content": '{"id": 100, "name": "员工"}',
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_employee_mutate(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/partner-employee/update",
+            method="POST",
+            body={"id": 100, "name": "员工"},
+            body_format="json",
+        )
+
+    def test_normal_order_approve_uses_order_id_field(self):
+        args = type("Args", (), {"yes": True, "compact": True, "command": "requirement-order-approve", "id": 123})()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_order_action(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/requirement-order/approve",
+            method="POST",
+            body={"orderId": 123},
+            body_format="json",
+        )
+
+    def test_security_product_approve_uses_product_endpoint(self):
+        args = type("Args", (), {"yes": True, "compact": True, "command": "requirement-order-approve-product", "id": 456})()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request", return_value={"data": None}) as request, patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_order_action(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/requirement-order/approve_product",
+            method="POST",
+            body={"orderId": 456},
+            body_format="json",
+        )
 
     def test_direct_download_never_calls_credential_endpoint(self):
         source = MODULE_PATH.read_text(encoding="utf-8")

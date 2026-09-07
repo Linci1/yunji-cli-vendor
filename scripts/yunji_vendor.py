@@ -22,7 +22,7 @@ CONFIG_DIR = Path(
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
 DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
@@ -297,7 +297,11 @@ def command_employee_mutate(args: argparse.Namespace) -> int:
     if args.command == "partner-employee-create":
         path, body, fmt = "/api/admin/partner-employee/create", parse_json_object(args.content, "员工字段"), "json"
     elif args.command == "partner-employee-update":
-        path, body, fmt = "/api/admin/partner-employee/update", {"id": args.id, **parse_json_object(args.content, "员工字段")}, "json"
+        content = parse_json_object(args.content, "员工字段")
+        if "id" in content and content["id"] != args.id:
+            raise VendorError("员工字段中的 id 必须与命令行 --id 一致，不能更新其他员工。")
+        content.pop("id", None)
+        path, body, fmt = "/api/admin/partner-employee/update", {"id": args.id, **content}, "json"
     elif args.command == "partner-employee-switch":
         path, body, fmt = "/api/admin/partner-employee/switch_enabled", {"id": args.id, "enabled": args.enabled}, "form"
     else:
@@ -326,12 +330,15 @@ def command_order_action(args: argparse.Namespace) -> int:
     require_role(ROLE_ADMIN)
     if not require_yes(args, "这是需求订单写操作，请确认后加 --yes。"):
         return 2
-    if args.command == "requirement-order-approve":
-        path, body, fmt = "/api/admin/requirement-order/approve", {"id": args.id}, "json"
+    if args.command == "requirement-order-approve-product":
+        # 安全产品订单走“项目成员接单”接口，不能复用普通需求订单接口。
+        path, body, fmt = "/api/admin/requirement-order/approve_product", {"orderId": args.id}, "json"
+    elif args.command == "requirement-order-approve":
+        path, body, fmt = "/api/admin/requirement-order/approve", {"orderId": args.id}, "json"
     else:
         if not args.reason.strip():
             raise VendorError("拒绝订单必须提供 --reason。")
-        path, body, fmt = "/api/admin/requirement-order/reject", {"id": args.id, "reason": args.reason}, "form"
+        path, body, fmt = "/api/admin/requirement-order/reject", {"orderId": args.id, "reason": args.reason}, "form"
     data = unwrap(api_request(path, method="POST", body=body, body_format=fmt))
     print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
     return 0
@@ -609,7 +616,11 @@ def build_parser() -> argparse.ArgumentParser:
     order_detail.add_argument("--id", type=int, required=True)
     order_detail.set_defaults(func=command_order_detail)
 
-    for name, label in (("requirement-order-approve", "接单"), ("requirement-order-reject", "拒单")):
+    for name, label in (
+        ("requirement-order-approve", "接普通订单"),
+        ("requirement-order-approve-product", "接安全产品订单"),
+        ("requirement-order-reject", "拒单"),
+    ):
         action = sub.add_parser(name, help=f"[供应商管理员] {label}")
         add_common(action); add_write(action)
         action.add_argument("--id", type=int, required=True)
