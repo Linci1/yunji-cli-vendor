@@ -47,7 +47,7 @@ GET /api/admin/user/current
 | 工时详情 | `/api/admin/security-product/work-record/detail` | GET | 含编辑历史 |
 | 提交工时 | `/api/admin/security-product/work-record/submit` | POST | 工程师或负责人代填 |
 | 修改工时 | `/api/admin/security-product/work-record/update` | POST | 变更原因必填 |
-| 流程事件 | `/api/admin/security-product/process-event/list` | GET | 查询授权范围事件 |
+| 流程事件 | `/api/admin/security-product/process-event/list` | GET | 供应商负责人查询授权范围事件 |
 | 订单材料 | `/api/admin/requirement-order-project-document/list` | GET | 按需求订单查询 |
 | 下载材料 | `/api/admin/requirement-order-project-document/download` | GET | 下载授权材料 |
 
@@ -58,6 +58,7 @@ GET /api/admin/user/current
 - 供应商工程师只能访问本人被绑定订单和本人工时；
 - 供应商负责人可以访问本供应商订单、采购单、员工和名下工程师工时；
 - 工程师不能调用采购单列表、详情和响应接口；
+- 工程师不需要调用工时核对结果和流程事件；这两类订单级汇总信息由负责人使用；
 - `userId` 表示实际工作工程师，`operatorId/operatorName/operatorRole` 表示实际操作人；
 - 请求体中的 ID 不能用于越权访问，服务端必须校验对象归属。
 

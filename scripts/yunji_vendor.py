@@ -22,7 +22,7 @@ CONFIG_DIR = Path(
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
 DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
-__version__ = "2.5.1"
+__version__ = "2.5.2"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
@@ -448,13 +448,12 @@ def command_work_hours_update(args: argparse.Namespace) -> int:
 
 
 def command_work_hours_check(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN)
     if args.purchase_order_id:
-        require_role(ROLE_ADMIN)
         data = unwrap(api_request(f"/api/admin/purchase-order/partner_order_detail?id={args.purchase_order_id}"))
         check = data.get("workHourCheck") if isinstance(data, dict) else None
         scope = {"purchaseOrderId": args.purchase_order_id}
     else:
-        require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
         data = unwrap(api_request(f"/api/admin/requirement-order/detail?id={args.requirement_order_id}"))
         if not isinstance(data, dict):
             raise VendorError("订单工时响应无法解析。")
@@ -469,7 +468,7 @@ def command_work_hours_check(args: argparse.Namespace) -> int:
 
 
 def command_process_trace(args: argparse.Namespace) -> int:
-    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    require_role(ROLE_ADMIN)
     scope = {
         "requirementId": args.requirement_id,
         "requirementOrderId": args.requirement_order_id,
@@ -692,14 +691,14 @@ def build_parser() -> argparse.ArgumentParser:
     work_update.add_argument("--reason", required=True)
     work_update.set_defaults(func=command_work_hours_update)
 
-    work_check = sub.add_parser("work-hours-check", help="[供应商管理员/员工] 查看订单或采购单工时核对")
+    work_check = sub.add_parser("work-hours-check", help="[供应商管理员] 查看订单或采购单工时核对")
     add_common(work_check)
     work_scope = work_check.add_mutually_exclusive_group(required=True)
     work_scope.add_argument("--requirement-order-id", type=int)
     work_scope.add_argument("--purchase-order-id", type=int)
     work_check.set_defaults(func=command_work_hours_check)
 
-    process_trace = sub.add_parser("process-trace", help="[供应商管理员/员工] 查询本人授权范围内的流程事件")
+    process_trace = sub.add_parser("process-trace", help="[供应商管理员] 查询本供应商授权范围内的流程事件")
     add_common(process_trace)
     process_trace.add_argument("--requirement-id", type=int)
     process_trace.add_argument("--requirement-order-id", type=int)

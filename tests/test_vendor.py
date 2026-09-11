@@ -241,6 +241,23 @@ class VendorCliTest(unittest.TestCase):
                 MODULE.command_work_hours_check(args)
             request.assert_not_called()
 
+    def test_employee_cannot_check_requirement_order_work_hours(self):
+        args = type("Args", (), {"command": "work-hours-check", "purchase_order_id": None, "requirement_order_id": 3033, "compact": True})()
+        with patch.object(MODULE, "require_role", side_effect=MODULE.VendorError("当前账号不是此命令允许的供应商角色。")), patch.object(MODULE, "api_request") as request:
+            with self.assertRaises(MODULE.VendorError):
+                MODULE.command_work_hours_check(args)
+            request.assert_not_called()
+
+    def test_employee_cannot_query_process_trace(self):
+        args = type("Args", (), {
+            "command": "process-trace", "requirement_id": None, "requirement_order_id": 3033,
+            "purchase_order_id": None, "event_type": "", "page": 1, "limit": 20, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", side_effect=MODULE.VendorError("当前账号不是此命令允许的供应商角色。")), patch.object(MODULE, "api_request") as request:
+            with self.assertRaises(MODULE.VendorError):
+                MODULE.command_process_trace(args)
+            request.assert_not_called()
+
     def test_purchase_response_includes_work_hour_reason(self):
         args = type("Args", (), {
             "command": "partner-purchase-respond", "id": 638, "purchase_amount": 1000,
