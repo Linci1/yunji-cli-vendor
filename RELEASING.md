@@ -11,7 +11,7 @@ python3 tools/package_release.py
 
 Distribute both generated files from `dist/`:
 
-- `yunji-cli-vendor-2.5.1.zip`
-- `yunji-cli-vendor-2.5.1.zip.sha256`
+- `yunji-cli-vendor-2.5.2.zip`
+- `yunji-cli-vendor-2.5.2.zip.sha256`
 
 The archive is allowlisted, deterministic, and contains no `.git` directory, Git remote, test suite, credentials, local reports, or machine-specific paths. Verify the published checksum before distribution.
