@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import mimetypes
 import os
 import ssl
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib import error as urllib_error
@@ -22,10 +24,15 @@ CONFIG_DIR = Path(
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
 DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
-__version__ = "2.5.2"
+__version__ = "2.6.0"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
+MAX_MATERIAL_SIZE = 100 * 1024 * 1024
+MATERIAL_EXTENSIONS = {
+    ".zip", ".rar", ".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx",
+    ".csv", ".md", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+}
 
 
 class VendorError(RuntimeError):
@@ -160,6 +167,74 @@ def unwrap(payload: dict[str, Any]) -> Any:
     if "data" in payload:
         return payload["data"]
     return payload
+
+
+def validate_material_file(value: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_file():
+        raise VendorError(f"文件不存在或不是普通文件：{path}。")
+    if path.stat().st_size <= 0:
+        raise VendorError(f"文件不能为空：{path}。")
+    if path.stat().st_size > MAX_MATERIAL_SIZE:
+        raise VendorError(f"文件超过 100M 上限：{path}。")
+    if path.suffix.lower() not in MATERIAL_EXTENSIONS:
+        raise VendorError(f"文件扩展名不在交付材料白名单内：{path.name}。")
+    return path
+
+
+def upload_material_file(path: Path, token: str) -> dict[str, Any]:
+    boundary = uuid.uuid4().hex
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    safe_filename = (
+        path.name.replace("\\", "\\\\").replace('"', '\\"')
+        .replace("\r", "_").replace("\n", "_")
+    )
+    prefix = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{safe_filename}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+    ).encode("utf-8")
+    suffix = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    body = prefix + path.read_bytes() + suffix
+    server, _ = configured_server()
+    request = urllib_request.Request(
+        f"{server}/api/admin/upload/file",
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": auth_header(token),
+            "Accept": "application/json,text/plain,*/*",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=120, context=ssl_context()) as response:
+            text = response.read().decode("utf-8", errors="replace")
+    except urllib_error.HTTPError as exc:
+        problem = exc.read().decode("utf-8", errors="replace")[:500]
+        try:
+            message = json.loads(problem).get("message")
+        except json.JSONDecodeError:
+            message = ""
+        raise VendorError(message or f"文件上传失败（HTTP {exc.code}）。") from exc
+    except urllib_error.URLError as exc:
+        raise VendorError(f"文件上传连接失败：{exc.reason}") from exc
+    try:
+        payload = json.loads(text) if text else {}
+    except json.JSONDecodeError as exc:
+        raise VendorError("文件上传返回了无法解析的数据。") from exc
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        raise VendorError(str(payload.get("message") if isinstance(payload, dict) else "") or "文件上传被服务端拒绝。")
+    uploaded = payload.get("data")
+    if not isinstance(uploaded, dict) or not uploaded.get("url"):
+        raise VendorError("文件上传成功，但服务端未返回可绑定的文件地址。")
+    return {
+        "url": str(uploaded["url"]),
+        "name": str(uploaded.get("name") or path.name),
+        "size": int(uploaded.get("size") or path.stat().st_size),
+        "contentType": str(uploaded.get("contentType") or content_type),
+    }
 
 
 def identity_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -524,6 +599,73 @@ def command_material_download(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_material_upload(args: argparse.Namespace) -> int:
+    identity = require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    if not require_yes(args, "这是交付材料上传写操作，请确认订单和文件后加 --yes。"):
+        return 2
+    paths = [validate_material_file(value) for value in args.file]
+    names = [path.name for path in paths]
+    if len(set(names)) != len(names):
+        raise VendorError("一次上传的文件名不能重复；请先去重后再提交。")
+    token, _ = configured_token()
+    uploaded = [upload_material_file(path, token) for path in paths]
+    payload = api_request(
+        "/api/admin/requirement-order-project-document/create",
+        method="POST",
+        body={"requirementOrderId": args.requirement_order_id, "files": uploaded},
+        token=token,
+    )
+    materials = unwrap(payload)
+    print_payload(
+        {
+            "command": args.command,
+            "status": "ok",
+            "requirementOrderId": args.requirement_order_id,
+            "operator": identity,
+            "uploaded": [
+                {"name": item["name"], "size": item["size"], "contentType": item["contentType"]}
+                for item in uploaded
+            ],
+            "data": materials,
+        },
+        args.compact,
+    )
+    return 0
+
+
+def command_material_delete(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN, ROLE_EMPLOYEE)
+    if not require_yes(args, "这是交付材料软删除写操作，请确认材料 ID 后加 --yes。"):
+        return 2
+    data = unwrap(api_request(f"/api/admin/requirement-order-project-document/delete?id={args.id}", method="POST"))
+    print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
+    return 0
+
+
+def command_order_update_engineers(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN)
+    if not require_yes(args, "修改工程师会全量替换订单成员，未传回的原成员会被解绑；确认后加 --yes。"):
+        return 2
+    data = unwrap(api_request(
+        "/api/admin/requirement-order/update_product_users",
+        method="POST",
+        body={"orderId": args.id, "userIds": args.user_ids},
+    ))
+    print_payload(
+        {
+            "command": args.command,
+            "status": "ok",
+            "id": args.id,
+            "fullReplacement": True,
+            "userIds": args.user_ids,
+            "data": data,
+            "next": "请重新执行 requirement-order-detail 获取最新 projectUsers。",
+        },
+        args.compact,
+    )
+    return 0
+
+
 def add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--compact", action="store_true", help="输出紧凑 JSON，适合脚本和 Agent 解析")
 
@@ -627,6 +769,18 @@ def build_parser() -> argparse.ArgumentParser:
             action.add_argument("--reason", required=True)
         action.set_defaults(func=command_order_action)
 
+    update_engineers = sub.add_parser(
+        "requirement-order-update-engineers",
+        help="[供应商管理员] 全量替换安全产品订单工程师",
+    )
+    add_common(update_engineers); add_write(update_engineers)
+    update_engineers.add_argument("--id", type=int, required=True, help="需求订单 ID")
+    update_engineers.add_argument(
+        "--user-ids", type=int, nargs="+", required=True,
+        help="完整工程师用户 ID 列表；必须包含所有需要保留的原成员",
+    )
+    update_engineers.set_defaults(func=command_order_update_engineers)
+
     purchase_list = sub.add_parser("partner-purchase-list", help="[供应商管理员] 查询采购单")
     add_common(purchase_list)
     purchase_list.add_argument("--project-id", type=int)
@@ -719,6 +873,17 @@ def build_parser() -> argparse.ArgumentParser:
     download.add_argument("--output", required=True)
     download.add_argument("--force", action="store_true")
     download.set_defaults(func=command_material_download)
+
+    upload = sub.add_parser("material-upload", help="[供应商管理员/员工] 上传并绑定交付材料")
+    add_common(upload); add_write(upload)
+    upload.add_argument("--requirement-order-id", type=int, required=True)
+    upload.add_argument("--file", action="append", required=True, help="本地文件路径；可重复传入多个文件")
+    upload.set_defaults(func=command_material_upload)
+
+    material_delete = sub.add_parser("material-delete", help="[供应商管理员/员工] 软删除交付材料")
+    add_common(material_delete); add_write(material_delete)
+    material_delete.add_argument("--id", type=int, required=True, help="交付材料 ID")
+    material_delete.set_defaults(func=command_material_delete)
     return parser
 
 

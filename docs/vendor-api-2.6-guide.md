@@ -2,10 +2,10 @@
 
 | 版本 | 维护日期 | 更新内容 |
 | --- | --- | --- |
-| 2.5.2 | 2026-09-13 | 明确供应商员工不需要订单级工时核对和流程事件；明确交付材料仅开放查询和下载。 |
+| 2.6.0 | 2026-09-20 | 新增交付材料上传、删除，以及供应商管理员更换安全产品订单工程师能力。 |
 
 > 适用对象：已接入云集平台的供应商应用和自动化工具
-> 版本定位：包含供应商基础 API，以及 2.5 新增的安全产品工时和流程事件接口
+> 版本定位：包含供应商基础 API，以及安全产品工时、流程事件、交付材料写操作和订单成员维护接口
 
 ### 1. 接入边界
 
@@ -42,6 +42,7 @@ GET /api/admin/user/current
 | 需求订单详情 | `/api/admin/requirement-order/detail` | GET | 查询订单详情 |
 | 普通订单接单 | `/api/admin/requirement-order/approve` | POST | 接受普通需求订单，参数使用 `orderId` |
 | 安全产品订单接单 | `/api/admin/requirement-order/approve_product` | POST | 通过“项目成员接单”接受安全产品订单，参数使用 `orderId` |
+| 更换接单工程师 | `/api/admin/requirement-order/update_product_users` | POST | 供应商管理员全量替换安全产品订单成员 |
 | 拒单 | `/api/admin/requirement-order/reject` | POST | 拒绝原因必填 |
 | 采购单列表 | `/api/admin/purchase-order/partner_orders` | GET | 查询本供应商采购单 |
 | 采购单详情 | `/api/admin/purchase-order/partner_order_detail` | GET | 含工时核对结果 |
@@ -52,7 +53,10 @@ GET /api/admin/user/current
 | 提交工时 | `/api/admin/security-product/work-record/submit` | POST | 工程师或负责人代填 |
 | 修改工时 | `/api/admin/security-product/work-record/update` | POST | 变更原因必填 |
 | 流程事件 | `/api/admin/security-product/process-event/list` | GET | 供应商负责人查询授权范围事件 |
+| 通用文件上传 | `/api/admin/upload/file` | POST | 上传单个文件并返回绑定用的 `url` |
 | 订单材料 | `/api/admin/requirement-order-project-document/list` | GET | 按需求订单查询 |
+| 创建交付材料 | `/api/admin/requirement-order-project-document/create` | POST | 把上传文件绑定到安全产品需求订单 |
+| 删除交付材料 | `/api/admin/requirement-order-project-document/delete` | POST | 软删除授权材料 |
 | 下载材料 | `/api/admin/requirement-order-project-document/download` | GET | 下载授权材料 |
 
 `POST` 接口的字段格式以后端契约为准；部分员工管理接口使用表单编码，其余业务接口通常使用 JSON。
@@ -71,6 +75,8 @@ GET /api/admin/user/current
 需求订单列表和详情用于确认订单状态、服务时间、项目、交付状态和工程师绑定关系。供应商负责人确认可承接后调用与订单类型对应的接单接口：普通订单使用 `/api/admin/requirement-order/approve`，安全产品订单使用 `/api/admin/requirement-order/approve_product`（项目成员接单）；拒绝时必须提供原因。
 
 接单、拒单和重新操作前应读取最新详情。已处理订单再次提交应返回状态冲突，客户端不得重复重试。
+
+更换安全产品订单工程师使用 `/api/admin/requirement-order/update_product_users`，请求包含 `orderId` 和 `userIds`。`userIds` 是全量替换，不是增量追加；未出现在列表中的原成员会被解绑。该接口仅供应商管理员可调用，仅允许已接单或已锁单的安全产品订单。成功后必须重新读取订单详情获取最新 `projectUsers`。
 
 ### 5. 采购单与工时核对
 
@@ -117,9 +123,11 @@ GET /api/admin/user/current
 
 ### 8. 交付材料
 
-交付材料按需求订单查询。客户端应只展示和下载当前身份有权限访问的材料。
+交付材料分两步创建：先调用 `/api/admin/upload/file` 上传单个文件，再把返回的 `url`、`name`、`size` 和可选 `contentType` 传入 `/api/admin/requirement-order-project-document/create`。业务创建参数包含 `requirementOrderId` 和 `files[]`。
 
-当前供应商开放能力不包含员工侧交付材料上传、驳回或删除接口。供应商员工在 CLI 中只能查询和下载材料；上传和交付管理由供应商管理员在平台内完成。
+服务端只在业务创建时校验订单状态为已接单或已锁单、订单为安全产品、单文件不超过 100M、扩展名在平台白名单内。供应商管理员可操作本供应商订单；供应商员工只能操作本人被绑定的订单，且只能删除本人上传的材料。接口不做同名或同地址重复校验，调用方必须自行去重。
+
+通用上传接口不与业务对象绑定，也不在上传层限制大小和类型。客户端应先执行业务白名单预检，避免产生未绑定的孤立文件；不应向用户或日志输出上传返回的 `url`。
 
 下载文件时注意：
 
@@ -145,6 +153,8 @@ GET /api/admin/user/current
 - Token 不得写入代码、日志、命令参数、截图或共享文档；
 - 不使用共享账号或高权限账号；
 - 写操作先查询最新状态，由用户确认后提交；
+- 修改订单工程师前展示完整目标成员列表，明确全量替换影响；
+- 上传交付材料前确认订单和文件内容，不输出对象存储地址；
 - 所有权限判断以服务端结果为准，客户端提示不能替代鉴权；
 - 不开放内部需求审批、派单、采购单内部审核、全库看板或平台管理接口；
 - 无权限时直接停止，不得更换供应商 ID、用户 ID、订单 ID 或 Token 重试。

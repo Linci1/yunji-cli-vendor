@@ -72,10 +72,10 @@ Token 保存在当前用户目录：Windows 为 `%USERPROFILE%\.config\yunji-cli
 
 | 角色 | 能力 |
 |---|---|
-| 供应商管理员 | 查询、创建和维护本供应商员工；查询本供应商需求订单；接单或拒单；查询和响应本供应商采购单；代员工填写或修改工时；查询工时核对结果和流程事件；查询和下载授权订单的交付材料 |
-| 供应商员工 | 查询、填写和修改本人工时记录；查询和下载本人有权访问订单的交付材料 |
+| 供应商管理员 | 查询、创建和维护本供应商员工；查询本供应商需求订单；接单、拒单或更换安全产品订单工程师；查询和响应本供应商采购单；代员工填写或修改工时；查询工时核对结果和流程事件；查询、上传、删除和下载授权订单的交付材料 |
+| 供应商员工 | 查询、填写和修改本人工时记录；查询、上传、删除和下载本人有权访问订单的交付材料 |
 
-同一安装包适用于两类角色。CLI 会先检查当前供应商身份，服务端再执行最终权限校验。供应商员工不使用 `work-hours-check` 和 `process-trace`；交付材料只能查询和下载，上传仍由供应商管理员在平台内完成。
+同一安装包适用于两类角色。CLI 会先检查当前供应商身份，服务端再执行最终权限校验。供应商员工不使用 `work-hours-check` 和 `process-trace`；供应商员工只能操作本人被绑定的安全产品订单材料，且只能删除本人上传的材料。
 
 ## 常用命令
 
@@ -87,6 +87,12 @@ yunji requirement-order-detail --id <需求订单ID> --compact
 yunji requirement-order-approve --id <需求订单ID> --yes --compact
 yunji requirement-order-approve-product --id <安全产品需求订单ID> --yes --compact
 yunji requirement-order-reject --id <需求订单ID> --reason '<拒绝原因>' --yes --compact
+
+yunji requirement-order-update-engineers \
+  --id <安全产品需求订单ID> \
+  --user-ids <保留的工程师用户ID> <新增工程师用户ID> \
+  --yes \
+  --compact
 
 yunji partner-purchase-list --compact
 yunji partner-purchase-detail --id <采购单ID> --compact
@@ -155,13 +161,15 @@ yunji partner-employee-tag --id <员工记录ID> --tag '<标签>' --yes --compac
 ```bash
 yunji materials-by-order --requirement-order-id <需求订单ID> --compact
 yunji material-download --id <材料ID> --output ./delivery-material.docx --compact
+yunji material-upload --requirement-order-id <需求订单ID> --file ./delivery-material.docx --yes --compact
+yunji material-delete --id <材料ID> --yes --compact
 ```
 
-工具不提供独立下载凭证命令，下载凭证不会输出到终端。
+`material-upload` 支持重复传入 `--file`。上传前会检查 100M 上限和扩展名白名单；上传后不会输出对象存储地址。`requirement-order-update-engineers` 是全量替换：`--user-ids` 必须包含所有需要保留的原成员，否则原成员会被解绑。工具不提供独立下载凭证命令，下载凭证不会输出到终端。
 
 ## 写操作与 Agent
 
-创建、修改、接单、拒单、工时提交与修改和采购单响应等写操作均要求 `--yes`。推荐流程：
+创建、修改、接单、拒单、更换订单工程师、上传或删除交付材料、工时提交与修改和采购单响应等写操作均要求 `--yes`。推荐流程：
 
 1. `yunji whoami --compact` 确认当前供应商身份。
 2. 查询目标对象及最新状态。

@@ -51,7 +51,8 @@ class VendorCliTest(unittest.TestCase):
                 "partner-purchase-response-info", "partner-purchase-respond",
                 "work-hours-list", "work-hours-detail", "work-hours-submit",
                 "work-hours-update", "work-hours-check", "process-trace",
-                "materials-by-order", "material-download",
+                "materials-by-order", "material-download", "material-upload",
+                "material-delete", "requirement-order-update-engineers",
             },
         )
 
@@ -59,11 +60,11 @@ class VendorCliTest(unittest.TestCase):
         parser = MODULE.build_parser()
         command_action = next(action for action in parser._actions if action.dest == "command")
         commands = set(command_action.choices)
-        cli_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-cli-2.5-guide.md").read_text(encoding="utf-8")
+        cli_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-cli-2.6-guide.md").read_text(encoding="utf-8")
         self.assertEqual({name for name in commands if name not in cli_guide}, set())
 
         source = MODULE_PATH.read_text(encoding="utf-8")
-        api_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-api-2.5-guide.md").read_text(encoding="utf-8")
+        api_guide = (MODULE_PATH.parents[1] / "docs" / "vendor-api-2.6-guide.md").read_text(encoding="utf-8")
         endpoints = {
             re.sub(r"\?.*$", "", endpoint).replace("{args.id}", "{id}").replace("{query}", "")
             for endpoint in re.findall(r"/api/admin/[A-Za-z0-9_?=&${}/.-]+", source)
@@ -77,6 +78,63 @@ class VendorCliTest(unittest.TestCase):
         login_flags = {flag for action in auth_choices["login"]._actions for flag in action.option_strings}
         self.assertNotIn("--token", login_flags)
         self.assertNotIn("--stdin", login_flags)
+
+    def test_material_upload_binds_files_and_hides_object_url(self):
+        with tempfile.TemporaryDirectory() as directory:
+            material = Path(directory) / "delivery-material.md"
+            material.write_text("delivery evidence", encoding="utf-8")
+            args = type("Args", (), {
+                "command": "material-upload", "requirement_order_id": 3033,
+                "file": [str(material)], "yes": True, "compact": True,
+            })()
+            uploaded = {"url": "https://object.invalid/private-file", "name": material.name, "size": 17, "contentType": "text/markdown"}
+            with patch.object(MODULE, "require_role", return_value={}), \
+                 patch.object(MODULE, "upload_material_file", return_value=uploaded) as upload, \
+                 patch.object(MODULE, "api_request", return_value={"data": [{"id": 901}]}) as request, \
+                 patch("sys.stdout", io.StringIO()) as output:
+                self.assertEqual(MODULE.command_material_upload(args), 0)
+        upload.assert_called_once()
+        request.assert_called_once_with(
+            "/api/admin/requirement-order-project-document/create",
+            method="POST",
+            body={"requirementOrderId": 3033, "files": [uploaded]},
+            token="",
+        )
+        self.assertNotIn("private-file", output.getvalue())
+
+    def test_material_upload_requires_confirmation(self):
+        args = type("Args", (), {
+            "command": "material-upload", "requirement_order_id": 3033,
+            "file": ["./delivery-material.md"], "yes": False, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
+            self.assertEqual(MODULE.command_material_upload(args), 2)
+        request.assert_not_called()
+
+    def test_engineer_replacement_sends_full_user_list(self):
+        args = type("Args", (), {
+            "command": "requirement-order-update-engineers", "id": 3033,
+            "user_ids": [112, 113], "yes": True, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), \
+             patch.object(MODULE, "api_request", return_value={"data": None}) as request, \
+             patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_order_update_engineers(args), 0)
+        request.assert_called_once_with(
+            "/api/admin/requirement-order/update_product_users",
+            method="POST",
+            body={"orderId": 3033, "userIds": [112, 113]},
+        )
+
+    def test_employee_cannot_replace_engineers(self):
+        args = type("Args", (), {
+            "command": "requirement-order-update-engineers", "id": 3033,
+            "user_ids": [112], "yes": True, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", side_effect=MODULE.VendorError("当前账号不是此命令允许的供应商角色。")), patch.object(MODULE, "api_request") as request:
+            with self.assertRaises(MODULE.VendorError):
+                MODULE.command_order_update_engineers(args)
+        request.assert_not_called()
 
     def test_internal_role_is_rejected(self):
         with patch.object(MODULE, "api_request", return_value={"data": {"id": 1, "roles": ["admin"]}}):

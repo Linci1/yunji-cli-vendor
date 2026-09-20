@@ -13,13 +13,13 @@ import zipfile
 from pathlib import Path
 
 
-VERSION = "2.5.2"
+VERSION = "2.6.0"
 PACKAGE_FILES = (
     "README.md",
     "install.sh",
     "install.cmd",
-    "docs/vendor-api-2.5-guide.md",
-    "docs/vendor-cli-2.5-guide.md",
+    "docs/vendor-api-2.6-guide.md",
+    "docs/vendor-cli-2.6-guide.md",
     "scripts/yunji",
     "scripts/yunji.cmd",
     "scripts/yunji_vendor.py",

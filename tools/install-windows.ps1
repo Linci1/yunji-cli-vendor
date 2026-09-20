@@ -41,8 +41,8 @@ foreach ($directory in @($InstallRoot, $BinDir, (Join-Path $InstallRoot "scripts
 
 $files = @(
     @("README.md", "README.md"),
-    @("docs\vendor-api-2.5-guide.md", "docs\vendor-api-2.5-guide.md"),
-    @("docs\vendor-cli-2.5-guide.md", "docs\vendor-cli-2.5-guide.md"),
+    @("docs\vendor-api-2.6-guide.md", "docs\vendor-api-2.6-guide.md"),
+    @("docs\vendor-cli-2.6-guide.md", "docs\vendor-cli-2.6-guide.md"),
     @("scripts\yunji.cmd", "scripts\yunji.cmd"),
     @("scripts\yunji_vendor.py", "scripts\yunji_vendor.py")
 )
