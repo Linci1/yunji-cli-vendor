@@ -2,6 +2,7 @@
 
 | 版本 | 维护日期 | 更新内容 |
 | --- | --- | --- |
+| 2.6.1 | 2026-09-23 | 新增供应商管理员软删除待审核安全产品工时接口，并补充 `work_record_voided` 流程事件。 |
 | 2.6.0 | 2026-09-20 | 新增交付材料上传、删除，以及供应商管理员更换安全产品订单工程师能力。 |
 
 > 适用对象：已接入云集平台的供应商应用和自动化工具
@@ -52,6 +53,7 @@ GET /api/admin/user/current
 | 工时详情 | `/api/admin/security-product/work-record/detail` | GET | 含编辑历史 |
 | 提交工时 | `/api/admin/security-product/work-record/submit` | POST | 工程师或负责人代填 |
 | 修改工时 | `/api/admin/security-product/work-record/update` | POST | 变更原因必填 |
+| 删除待审核工时 | `/api/admin/security-product/work-record/delete` | POST | 供应商管理员软删除状态为 `2` 的本供应商安全产品工时 |
 | 流程事件 | `/api/admin/security-product/process-event/list` | GET | 供应商负责人查询授权范围事件 |
 | 通用文件上传 | `/api/admin/upload/file` | POST | 上传单个文件并返回绑定用的 `url` |
 | 订单材料 | `/api/admin/requirement-order-project-document/list` | GET | 按需求订单查询 |
@@ -68,6 +70,7 @@ GET /api/admin/user/current
 - 工程师不能调用采购单列表、详情和响应接口；
 - 工程师不需要调用工时核对结果和流程事件；这两类订单级汇总信息由负责人使用；
 - `userId` 表示实际工作工程师，`operatorId/operatorName/operatorRole` 表示实际操作人；
+- 删除工时仅供应商管理员可调用，只允许删除本供应商状态为 `2`（待审核）的安全产品工时；删除为软删除，可选传入 `reason`；
 - 请求体中的 ID 不能用于越权访问，服务端必须校验对象归属。
 
 ### 4. 需求订单
@@ -111,6 +114,20 @@ GET /api/admin/user/current
 - 可修改状态由服务端校验；
 - 详情中的 `editHistory[]` 保留首次填写和后续修改记录。
 
+删除待审核工时：
+
+```http
+POST /api/admin/security-product/work-record/delete
+Content-Type: application/json
+
+{
+  "id": 123,
+  "reason": "工时填写有误"
+}
+```
+
+服务端必须校验工时属于当前供应商、状态为 `2`（待审核），并以软删除方式处理；成功后产生 `work_record_voided` 流程事件。供应商员工不应调用此接口。
+
 供应商负责人代填时仍应把实际工程师写入 `userId`，不能把负责人写入该字段。
 
 ### 7. 流程事件
@@ -120,6 +137,8 @@ GET /api/admin/user/current
 事件应使用 `eventTime` 排序和计算耗时。典型事件可用于定位需求审批、供应商响应、锁单、采购单创建、首次填工时、采购单响应和审核闭环。
 
 `historyComplete=false` 表示旧数据事件链不完整。禁止使用对象 `updateTime`、创建时间或当前状态反推缺失业务节点时间。
+
+`work_record_voided` 表示供应商管理员软删除待审核工时，不参与首次或最后填写工时的时间统计。
 
 ### 8. 交付材料
 

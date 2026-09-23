@@ -24,7 +24,7 @@ CONFIG_DIR = Path(
 TOKEN_FILE = CONFIG_DIR / "access-token"
 SERVER_FILE = CONFIG_DIR / "server-url"
 DEFAULT_BASE_URL = "https://yunji.chaitin.cn"
-__version__ = "2.6.0"
+__version__ = "2.6.1"
 
 ROLE_ADMIN = "supplier-admin"
 ROLE_EMPLOYEE = "supplier-employee"
@@ -522,6 +522,22 @@ def command_work_hours_update(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_work_hours_delete(args: argparse.Namespace) -> int:
+    require_role(ROLE_ADMIN)
+    if not require_yes(args, "这是工时软删除写操作，仅供应商负责人可执行，请确认工时 ID 后加 --yes。"):
+        return 2
+    body = {"id": args.id}
+    if args.reason:
+        body["reason"] = args.reason
+    data = unwrap(api_request(
+        "/api/admin/security-product/work-record/delete",
+        method="POST",
+        body=body,
+    ))
+    print_payload({"command": args.command, "status": "ok", "id": args.id, "data": data}, args.compact)
+    return 0
+
+
 def command_work_hours_check(args: argparse.Namespace) -> int:
     require_role(ROLE_ADMIN)
     if args.purchase_order_id:
@@ -844,6 +860,12 @@ def build_parser() -> argparse.ArgumentParser:
     work_update.add_argument("--remark", default="")
     work_update.add_argument("--reason", required=True)
     work_update.set_defaults(func=command_work_hours_update)
+
+    work_delete = sub.add_parser("work-hours-delete", help="[供应商管理员] 软删除待审核安全产品工时")
+    add_common(work_delete); add_write(work_delete)
+    work_delete.add_argument("--id", type=int, required=True, help="工时记录 ID")
+    work_delete.add_argument("--reason", default="", help="删除原因，可选")
+    work_delete.set_defaults(func=command_work_hours_delete)
 
     work_check = sub.add_parser("work-hours-check", help="[供应商管理员] 查看订单或采购单工时核对")
     add_common(work_check)

@@ -50,7 +50,7 @@ class VendorCliTest(unittest.TestCase):
                 "requirement-order-reject", "partner-purchase-list", "partner-purchase-detail",
                 "partner-purchase-response-info", "partner-purchase-respond",
                 "work-hours-list", "work-hours-detail", "work-hours-submit",
-                "work-hours-update", "work-hours-check", "process-trace",
+                "work-hours-update", "work-hours-delete", "work-hours-check", "process-trace",
                 "materials-by-order", "material-download", "material-upload",
                 "material-delete", "requirement-order-update-engineers",
             },
@@ -277,6 +277,31 @@ class VendorCliTest(unittest.TestCase):
         with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
             self.assertEqual(MODULE.command_work_hours_submit(args), 2)
             request.assert_not_called()
+
+    def test_work_hours_delete_requires_confirmation(self):
+        args = type("Args", (), {
+            "command": "work-hours-delete", "id": 55, "reason": "工时填写有误",
+            "yes": False, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}), patch.object(MODULE, "api_request") as request:
+            self.assertEqual(MODULE.command_work_hours_delete(args), 2)
+            request.assert_not_called()
+
+    def test_work_hours_delete_is_admin_only_and_uses_reason(self):
+        args = type("Args", (), {
+            "command": "work-hours-delete", "id": 55, "reason": "工时填写有误",
+            "yes": True, "compact": True,
+        })()
+        with patch.object(MODULE, "require_role", return_value={}) as require, \
+             patch.object(MODULE, "api_request", return_value={"data": None}) as request, \
+             patch("sys.stdout", io.StringIO()):
+            self.assertEqual(MODULE.command_work_hours_delete(args), 0)
+        require.assert_called_once_with(MODULE.ROLE_ADMIN)
+        request.assert_called_once_with(
+            "/api/admin/security-product/work-record/delete",
+            method="POST",
+            body={"id": 55, "reason": "工时填写有误"},
+        )
 
     def test_work_hours_submit_uses_engineer_id(self):
         args = type("Args", (), {
